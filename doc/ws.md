@@ -52,7 +52,7 @@ We currently:
 
 ### Option A – **Zero-Copy Inline Parse** (High-efficiency mode)
 
-```rust
+```text
 loop {
     let frame = ws.read_frame().await?;
     if let Payload::Borrowed(data) = frame.payload {
@@ -63,7 +63,7 @@ loop {
 
 ### Option B – **Safe Channel Parse** (What we do now)
 
-```rust
+```text
 let frame = ws.read_frame().await?;
 if let Payload::Borrowed(data) = frame.payload {
     tx.send(Bytes::copy_from_slice(data)).await?; // Copy, then parse in another task

@@ -88,26 +88,3 @@ These variants are planned for future performance exploration:
 > 🧠 Advanced lifetime gymnastics — might be too complex for now
 
 ---
-
-## 🧰 Trait-Based Design
-
-All parsers implement:
-
-```rust
-trait BookTickerParser {
-    fn parse(&self, raw: &Bytes) -> Result<TopOfBookUpdate>;
-}
-```
-
-> ✅ Allows swapping parsers at runtime
-> ✅ Makes benchmarking and testing each parser easy
-> ✅ Only instantiated once at startup
-
-The `parser_loop()` handles channel input + parsing:
-
-```rust
-pub async fn parser_loop(
-    rx: Receiver<Bytes>,
-    price_store: Arc<DashMap<String, TopOfBookUpdate>>,
-)
-```
