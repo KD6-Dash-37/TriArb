@@ -1,6 +1,6 @@
 // src/price_path.rs
 
-use std::{fmt,fs};
+use std::{collections::HashSet, fmt,fs};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -66,7 +66,7 @@ impl fmt::Display for Side {
 
 
 /// A single leg of a pricing path: includes the trading pair and side of book
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PathLeg {
     pub symbol: SymbolInfo,
     pub side: Side,
@@ -74,8 +74,8 @@ pub struct PathLeg {
 
 
 /// A complete 3-leg pricing path forming a triangle that starts and ends in the home currency.
-///
 /// Each leg specifies the market symbol and trade direction.
+#[derive(Debug, Clone)]
 pub struct PricingPath {
     pub leg1: PathLeg,
     pub leg2: PathLeg,
@@ -94,6 +94,17 @@ impl<'a> fmt::Display for PricingPath {
             describe_leg(&self.leg2),
             describe_leg(&self.leg3),
         )
+    }
+}
+
+impl PricingPath {
+    /// Returns all unique symbol names (e.g. "BTCUSDT") used in this path.
+    pub fn symbols(&self) -> Vec<String> {
+        let mut set = HashSet::new();
+        set.insert(self.leg1.symbol.symbol.clone());
+        set.insert(self.leg2.symbol.symbol.clone());
+        set.insert(self.leg3.symbol.symbol.clone());
+        set.into_iter().collect()
     }
 }
 
