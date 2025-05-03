@@ -6,11 +6,15 @@ use anyhow::Result;
 use tri_arb::parse::{parser_loop, TopOfBookUpdate};
 use tri_arb::ws::start_ws_listener;
 use tri_arb::arb::{naive::NaivePrecompiledScanner, arb_loop};
+use tri_arb::price_path::find_and_build_price_paths;
 use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Starting Binance WS listener");
+    let home_asset = "USDT";
+    let targets = ["BTC", "ETH", "SOL"];
+    let _price_paths = find_and_build_price_paths(home_asset, &targets);
     
     let symbols = ["BTCUSDT", "ETHBTC", "ETHUSDT"];
 

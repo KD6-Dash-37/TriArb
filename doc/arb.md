@@ -52,7 +52,7 @@ This document outlines the core evaluation strategies used (or planned) within t
 
 * Track symbol-to-triangle **dependency map**:
 
-  ```rust
+  ```text
   HashMap<Symbol, Vec<TriangleID>>
   ```
 * On update, **only recompute triangles** affected by the changed symbol
