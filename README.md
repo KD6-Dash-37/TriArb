@@ -40,7 +40,7 @@ Choose between multiple arbitrage evaluation strategies, each designed for diffe
 
 * ✅ [`Naive Precompiled Scanner`](./src/arb/naive.rs)  
 * ✅ [`HashMap Edge Scanner`](./src/arb/edge.rs)  
-* 🛠️ [`Multithreaded Scan with Rayon`](./src/arb/rayon_scan.rs) *(planned)*
+* ✅ [`Multithreaded Scan with Rayon`](./src/arb/rayon_scan.rs) *(planned)*
 * 🛠️ [`Delta-Based Scan`](./src/arb/delta.rs) *(planned)*  
 * 🛠️ [`SIMD Vectorized Evaluation`](./src/arb/simd.rs) *(planned)*  
 
