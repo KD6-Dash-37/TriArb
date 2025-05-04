@@ -15,7 +15,7 @@ This document outlines the core evaluation strategies used (or planned) within t
 * ✅ [`HashMap Edge Scanner`](./src/arb/edge.rs)  
   Maintains a reverse index of symbols to relevant paths — only scans what changed. Designed for scalability and low-latency use.
 
-* 🛠️ [`Multithreaded Scan with Rayon`](./src/arb/rayon_scan.rs) *(planned)*  
+* ✅ [`Multithreaded Scan with Rayon`](./src/arb/rayon_scan.rs) *(planned)*  
   Parallelizes path evaluation using Rayon — ideal for burst-heavy scenarios.
 
 * 🛠️ [`Delta-Based Scan`](./src/arb/delta.rs) *(planned)*  
@@ -125,16 +125,96 @@ If symbol volumes grow, the `for path in paths` loop can be parallelized.
 
 **Improvement:** Consider using `rayon::par_iter()` over `paths` for parallel arb detection.
 
-
 ---
 
 ## ⚡ 3. **Multithreaded Scan with Rayon**
 
-* Same triangle-based scan, but parallelized:
+* Parallelized arbitrage evaluation across all relevant pricing paths using the [`rayon`](https://crates.io/crates/rayon) crate.
+* ✅ *Leverages all available CPU cores for high-throughput evaluation*
+* ✅ *Filters paths by symbol for efficient, targeted scanning*
+* ❌ *Parallelism adds some per-update overhead on small universes*
 
-  * `triangles.par_iter().for_each(...)`
-* ✅ *Linear performance scaling across CPU cores*
-* ❌ *Slightly higher overhead; suboptimal for tiny symbol sets*
+---
+
+### 🧠 Overview
+
+The `RayonPathScanner` family evaluates triangular arbitrage paths in parallel using **data-parallel execution** via `rayon::par_iter`. Unlike earlier versions that evaluated all paths on every update, these scanners now **index paths by symbol**, allowing the system to scan only those paths directly impacted by a price update.
+
+This makes them suitable for large symbol universes and burst-heavy environments — where parallelism and filtering can dramatically reduce CPU load and response time.
+
+---
+
+### 🧩 Variants
+
+Two scanner strategies are implemented and selectable via config:
+
+| Variant      | Behavior                                                              |
+| ------------ | --------------------------------------------------------------------- |
+| `FirstMatch` | Returns the first profitable path found in parallel                   |
+| `BestMatch`  | Evaluates all relevant paths and returns the one with the highest ROI |
+
+Each variant uses shared `DashMap` state and an indexed `HashMap<Symbol, Vec<Path>>` to localize evaluation on every `TopOfBookUpdate`.
+
+---
+
+### ⚙️ Configuration (in `arb.toml`)
+
+```toml
+[rayon_scan]
+on_update_return = "best"  # or "first"
+```
+
+---
+
+### 🔄 Execution Flow
+
+1. **Initialization (`new`)**
+
+   * All pricing paths are wrapped in `Arc` and indexed by symbol.
+   * A `DashMap<String, TopOfBookUpdate>` stores live bid/ask prices for each symbol.
+
+2. **On Update (`process_update`)**
+
+   * The symbol’s entry in `path_index` is used to retrieve relevant paths.
+   * Those paths are scanned in parallel using `rayon::par_iter()`.
+
+#### `FirstMatch`
+
+* Stops at the first profitable path found (`end > 1.0`)
+* Uses `find_map_any(...)`
+* ✅ *Low latency, fastest match*
+
+#### `BestMatch`
+
+* Filters for all profitable paths
+* Picks the one with the highest return via `max_by(...)`
+* ✅ *Maximizes return, ideal for ROI-focused evaluation*
+
+---
+
+### ✅ Design Benefits
+
+* **Symbol-aware filtering**: avoids full-universe scans
+* **Multicore parallelism**: scales linearly with CPU cores
+* **Configurable mode**: trade latency vs. profitability
+* **Thread-safe internals**: uses `DashMap` + `Arc` for lock-free concurrency
+
+---
+
+### 🧪 Example Result Behavior
+
+| Update Symbol | Paths Evaluated            | Result Behavior                              |
+| ------------- | -------------------------- | -------------------------------------------- |
+| `BTCUSDT`     | Only paths using `BTCUSDT` | Evaluates in parallel, returns first or best |
+| `FOOBAR`      | No matching paths          | Skips immediately                            |
+
+---
+
+### 🔍 Future Opportunities
+
+* Add `"all"` or `"top_n"` modes to return more than one opportunity per update
+* Batch updates to amortize scanning cost over multiple events
+* Integrate path priority scores to control evaluation order
 
 ---
 

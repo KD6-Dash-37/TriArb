@@ -1,0 +1,55 @@
+# ================================================
+# 🔁 TriArb Arbitrage Evaluation Configuration
+# See: doc/arb.md for detailed descriptions
+# ================================================
+
+
+# ────────────────────────────────────────────────
+# 🧠 Multithreaded Rayon Path Scanner
+# -----------------------------------------------
+# Controls how arbitrage opportunities are selected when using the
+# Rayon-based parallel evaluator.
+#
+# on_update_return:
+#   - "first" : returns the first profitable path found (fastest response)
+#   - "best"  : evaluates all profitable paths and returns the one with highest return
+#
+# This mode is recommended for large universes or CPU-rich environments.
+# ────────────────────────────────────────────────
+
+[rayon_scan]
+on_update_return = "best"
+
+
+# ────────────────────────────────────────────────
+# ⚙️ HashMap Edge Scanner
+# -----------------------------------------------
+# (Future expansion — currently hardcoded)
+# Add symbol pruning thresholds, dynamic path weights, or cache warmup control here.
+# ────────────────────────────────────────────────
+
+[edge_map]
+# enable_symbol_pruning = true
+# warm_start_symbols = ["BTCUSDT", "ETHUSDT"]
+
+
+# ────────────────────────────────────────────────
+# 🔄 Delta-Based Evaluator
+# -----------------------------------------------
+# (Planned) Controls update sensitivity and delta propagation strategy.
+# ────────────────────────────────────────────────
+
+[delta_scan]
+# enable = false
+# delta_threshold = 0.001
+
+
+# ────────────────────────────────────────────────
+# 🧬 SIMD-Accelerated Evaluator
+# -----------------------------------------------
+# (Planned) Advanced options for vectorized execution.
+# ────────────────────────────────────────────────
+
+[simd]
+# precision = "f32"
+# lanes = 8
