@@ -8,18 +8,20 @@ use tri_arb::arb::{create_arb_evaluator, arb_loop, ArbMode};
 use tri_arb::price_path::find_and_build_price_paths;
 use tokio::sync::mpsc;
 
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    
-    println!("Starting TriArb");
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+    tracing::info!("Starting TriArb");
     
     // Config inputs
     let home_asset = "USDT";
     let targets = ["BTC", "ETH", "SOL"];
-    let arb_eval_mode = ArbMode::EdgeMap;
+    let arb_eval_mode = ArbMode::RayonScan;
     println!("Home asset: {}", home_asset);
     println!("Target assets: {:?}", targets);
-    println!("Running with arbitrage evaluator mode: {:?}", arb_eval_mode);
     
     // Create resources
     let price_paths = find_and_build_price_paths(home_asset, &targets)?;
@@ -33,7 +35,7 @@ async fn main() -> Result<()> {
     tokio::spawn(start_ws_listener(price_paths.clone(), ws_tx));
     
     tokio::signal::ctrl_c().await?;
-    println!("Shutdown signal received");
+    tracing::info!("Shutdown signal received");
     
     Ok(())
 }
