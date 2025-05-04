@@ -12,3 +12,5 @@ pub mod arb;
 
 #[doc = include_str!("../doc/pricing_path.md")]
 pub mod price_path;
+
+pub mod mock_feed;

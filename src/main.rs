@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     // Start loops
     tokio::spawn(arb_loop(parser_rx, evaluator));
     tokio::spawn(parser_loop(ws_rx, parser_tx));
-    tokio::spawn(start_ws_listener(price_paths.clone(), ws_tx));
+    tokio::spawn(start_ws_listener(price_paths.clone(), ws_tx, None));
     
     tokio::signal::ctrl_c().await?;
     tracing::info!("Shutdown signal received");

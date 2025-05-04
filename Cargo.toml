@@ -3,6 +3,7 @@
 name = "tri_arb"
 version = "0.1.0"
 edition = "2024"
+default-run = "tri_arb"
 
 [dependencies]
 serde = {version = "1.0.219", features = ["derive"]}
@@ -25,6 +26,11 @@ rayon = "1.10.0"
 toml = "0.8.22"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
+tokio-tungstenite = "0.26.2"
+rand = "0.8"
+rand_chacha = "0.3"
+rand_core = "0.9.3"
+tungstenite = "0.26.2"
 
 [dev-dependencies]
 criterion = "0.5.1"
