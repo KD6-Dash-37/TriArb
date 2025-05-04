@@ -36,5 +36,13 @@ manual_parser = []
 print_parsed = []
 
 [[bench]]
-name = "parser_bench"
+name = "all"
+harness = false
+
+[[bench]]
+name = "arb"
+harness = false
+
+[[bench]]
+name = "parse"
 harness = false

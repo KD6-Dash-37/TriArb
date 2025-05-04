@@ -8,12 +8,10 @@ This project is designed to help answer questions like:
 * *How should we structure pricing paths to be both safe and efficient?*
 * *Which arb evaluation strategy scales best: precompiled loops, hash maps, deltas, or SIMD scans?*
 
-
 ## 🚧 Disclaimer
 
 **This project does *not* include trade execution, order placement, or connectivity to live accounts.**
 It is a research and development effort meant for educational purposes only. Do not use it for trading real funds.
-
 
 ## ✨ What We’ve Built So Far
 
@@ -36,11 +34,15 @@ It is a research and development effort meant for educational purposes only. Do 
 * Discovers all **valid 3-leg triangular paths** starting and ending in a "home" asset (e.g. USDT).
 * Each path is assigned a direction (`Bid` or `Ask`) based on trade flow.
 
-### ⚙️ Arb Evaluator (Precompiled)
+### 🧠 Arb Evaluators
 
-* **NaivePrecompiledScanner** tracks all configured triangles.
-* On each `TopOfBookUpdate`, recomputes the path profit in real-time.
-* Uses a shared `DashMap` store internally — others are free to use alternatives.
+Choose between multiple arbitrage evaluation strategies, each designed for different performance and complexity tradeoffs:
+
+* ✅ [`Naive Precompiled Scanner`](./src/arb/naive.rs)  
+* ✅ [`HashMap Edge Scanner`](./src/arb/edge.rs)  
+* 🛠️ [`Multithreaded Scan with Rayon`](./src/arb/rayon_scan.rs) *(planned)*
+* 🛠️ [`Delta-Based Scan`](./src/arb/delta.rs) *(planned)*  
+* 🛠️ [`SIMD Vectorized Evaluation`](./src/arb/simd.rs) *(planned)*  
 
 ### 🚀 Benchmarking
 
