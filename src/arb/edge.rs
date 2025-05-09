@@ -40,14 +40,26 @@ impl ArbEvaluator for HashMapEdgeScanner {
     /// using only paths involving the updated symbol.
     fn process_update(&self, update: &TopOfBookUpdate) -> Option<(PricingPath, f64)> {
         self.price_store.insert(update.symbol.clone(), update.clone());
-
+        const START: f64 = 1.0;
         if let Some(paths) = self.path_index.get(&update.symbol) {
             for path in paths {
-                let Some(p1) = self.price_store.get(&path.leg1.symbol.symbol) else { continue; };
-                let Some(p2) = self.price_store.get(&path.leg2.symbol.symbol) else { continue; };
-                let Some(p3) = self.price_store.get(&path.leg3.symbol.symbol) else { continue; };
                 
-                const START: f64 = 1.0;
+                let s1 = &path.leg1.symbol.symbol;
+                let s2 = &path.leg2.symbol.symbol;
+                let s3 = &path.leg3.symbol.symbol;
+
+                // Early filter: skip path if not all 3 symbols are present
+                    if !(self.price_store.contains_key(s1)
+                    && self.price_store.contains_key(s2)
+                    && self.price_store.contains_key(s3))
+                {
+                    continue;
+                }
+
+                // Safe to unwrap now
+                let p1 = self.price_store.get(s1).unwrap();
+                let p2 = self.price_store.get(s2).unwrap();
+                let p3 = self.price_store.get(s3).unwrap();
 
                 let step1 = match path.leg1.side {
                     Side::Ask => START / p1.ask_price,

@@ -1,5 +1,7 @@
 // benches/parse.rs
 
+// Run these in isolation -> cargo bench --bench arb
+
 use criterion::{criterion_group, Criterion, black_box, criterion_main};
 use bytes::Bytes;
 use tri_arb::parse::{srd_jsn::SerdeJsonParser, man_scan::ManualScanParser, BookTickerParser};

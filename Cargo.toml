@@ -33,8 +33,7 @@ rand_core = "0.9.3"
 tungstenite = "0.26.2"
 
 [dev-dependencies]
-criterion = "0.5.1"
-
+criterion = {version = "0.5.1", features = ["async"]}
 
 [features]
 default = [
@@ -51,6 +50,10 @@ harness = false
 
 [[bench]]
 name = "arb"
+harness = false
+
+[[bench]]
+name = "arb_thru"
 harness = false
 
 [[bench]]
