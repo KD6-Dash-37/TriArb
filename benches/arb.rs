@@ -1,6 +1,15 @@
 // benches/arb.rs
 
-use criterion::{criterion_group, Criterion, black_box, criterion_main};
+// cargo bench --bench arb -- --save-baseline current
+// critcmp current
+
+use criterion::{
+    criterion_group,
+    criterion_main,
+    BenchmarkGroup,
+    Criterion,
+    black_box,
+};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
@@ -24,17 +33,28 @@ fn mock_updates(symbols: &[String], count: usize) -> Vec<TopOfBookUpdate> {
     updates
 }
 
+
+fn bench_scanner<B: ArbEvaluator + 'static>(
+    group: &mut BenchmarkGroup<criterion::measurement::WallTime>,
+    label: &str,
+    updates: &[TopOfBookUpdate],
+    scanner: B,
+) {
+    group.bench_function(label, |b| {
+        b.iter(|| {
+            for u in black_box(updates) {
+                let _ = scanner.process_update(u);
+            }
+        })
+    });
+}
+
+
 pub fn bench_scanners_small_universe_few_updates(c: &mut Criterion) {
     // Test params
     let path_count = 5;
     let n_updates = 10;
-    
-    // Test ID's
-    let naive_test_id = format!("arb/naive/small_universe_few_updates/paths={path_count}/updates={n_updates}");
-    let edge_test_id = format!("arb/edge/small_universe_few_updates/paths={path_count}/updates={n_updates}");
-    let rayon_best_test_id = format!("arb/rayon_best/small_universe_few_updates/paths={path_count}/updates={n_updates}");
-    let rayon_first_test_id = format!("arb/rayon_first/small_universe_few_updates/paths={path_count}/updates={n_updates}");
-    
+        
     // Test preparation & resources
     let (paths, symbols) = sample_paths("USDT", path_count).expect("path sampling failed");
     let updates = mock_updates(&symbols, n_updates);
@@ -45,34 +65,15 @@ pub fn bench_scanners_small_universe_few_updates(c: &mut Criterion) {
     let rayon_best = RayonBestMatchScanner::new(paths.clone());
     let rayon_first = RayonFirstMatchScanner::new(paths.clone());
 
-    c.bench_function(&naive_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = naive.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&edge_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = edge.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_best_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_best.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_first_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_first.process_update(u);
-            }
-        })
-    });  
+    let group_name = format!("arb_timed/small_universe_few_updates/paths={path_count}/updates={n_updates}");
+    let mut group = c.benchmark_group(group_name);
+    
+    bench_scanner(&mut group, "naive", &updates, naive);
+    bench_scanner(&mut group, "edge", &updates, edge);
+    bench_scanner(&mut group, "rayon_best", &updates, rayon_best);
+    bench_scanner(&mut group, "rayon_first", &updates, rayon_first);
+
+    group.finish();
 }
 
 fn bench_scanners_small_universe_many_updates(c: &mut Criterion) {
@@ -80,12 +81,6 @@ fn bench_scanners_small_universe_many_updates(c: &mut Criterion) {
     let path_count = 5;
     let n_updates = 500_000;
     
-    // Test ID's
-    let naive_test_id = format!("arb/naive/small_universe_many_updates/paths={path_count}/updates={n_updates}");
-    let edge_test_id = format!("arb/edge/small_universe_many_updates/paths={path_count}/updates={n_updates}");
-    let rayon_best_test_id = format!("arb/rayon_best/small_universe_many_updates/paths={path_count}/updates={n_updates}");
-    let rayon_first_test_id = format!("arb/rayon_first/small_universe_many_updates/paths={path_count}/updates={n_updates}");
-
     // Test preparation & resources
     let (paths, symbols) = sample_paths("USDT", path_count).expect("path sampling failed");
     let updates = mock_updates(&symbols, n_updates);
@@ -96,34 +91,15 @@ fn bench_scanners_small_universe_many_updates(c: &mut Criterion) {
     let rayon_best = RayonBestMatchScanner::new(paths.clone());
     let rayon_first = RayonFirstMatchScanner::new(paths.clone());
 
-    c.bench_function(&naive_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = naive.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&edge_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = edge.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_best_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_best.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_first_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_first.process_update(u);
-            }
-        })
-    });  
+    let group_name = format!("arb_timed/small_universe_many_updates/paths={path_count}/updates={n_updates}");
+    let mut group = c.benchmark_group(group_name);
+
+    bench_scanner(&mut group, "naive", &updates, naive);
+    bench_scanner(&mut group, "edge", &updates, edge);
+    bench_scanner(&mut group, "rayon_best", &updates, rayon_best);
+    bench_scanner(&mut group, "rayon_first", &updates, rayon_first);
+
+    group.finish();
 }
 
 
@@ -132,12 +108,6 @@ fn bench_scanners_large_universe_few_updates(c: &mut Criterion) {
     let path_count = 100;
     let n_updates = 10;
     
-    // Test ID's
-    let naive_test_id = format!("arb/naive/large_universe_few_updates/paths={path_count}/updates={n_updates}");
-    let edge_test_id = format!("arb/edge/large_universe_few_updates/paths={path_count}/updates={n_updates}");
-    let rayon_best_test_id = format!("arb/rayon_best/large_universe_few_updates/paths={path_count}/updates={n_updates}");
-    let rayon_first_test_id = format!("arb/rayon_first/large_universe_few_updates/paths={path_count}/updates={n_updates}");
-
     // Test preparation & resources
     let (paths, symbols) = sample_paths("USDT", path_count).expect("path sampling failed");
     let updates = mock_updates(&symbols, n_updates);
@@ -148,34 +118,15 @@ fn bench_scanners_large_universe_few_updates(c: &mut Criterion) {
     let rayon_best = RayonBestMatchScanner::new(paths.clone());
     let rayon_first = RayonFirstMatchScanner::new(paths.clone());
 
-    c.bench_function(&naive_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = naive.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&edge_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = edge.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_best_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_best.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_first_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_first.process_update(u);
-            }
-        })
-    });  
+    let group_name = format!("arb_timed/large_universe_few_updates/paths={path_count}/updates={n_updates}");
+    let mut group = c.benchmark_group(group_name);
+
+    bench_scanner(&mut group, "naive", &updates, naive);
+    bench_scanner(&mut group, "edge", &updates, edge);
+    bench_scanner(&mut group, "rayon_best", &updates, rayon_best);
+    bench_scanner(&mut group, "rayon_first", &updates, rayon_first);
+
+    group.finish();
 }
 
 
@@ -183,13 +134,7 @@ fn bench_scanners_large_universe_many_updates(c: &mut Criterion) {
     // Test params
     let path_count = 100;
     let n_updates = 500_000;
-    
-    // Test ID's
-    let naive_test_id = format!("arb/naive/large_universe_many_updates/paths={path_count}/updates={n_updates}");
-    let edge_test_id = format!("arb/edge/large_universe_many_updates/paths={path_count}/updates={n_updates}");
-    let rayon_best_test_id = format!("arb/rayon_best/large_universe_many_updates/paths={path_count}/updates={n_updates}");
-    let rayon_first_test_id = format!("arb/rayon_first/large_universe_many_updates/paths={path_count}/updates={n_updates}");
-    
+        
     // Test preparation & resources
     let (paths, symbols) = sample_paths("USDT", path_count).expect("path sampling failed");
     let updates = mock_updates(&symbols, n_updates);
@@ -199,35 +144,16 @@ fn bench_scanners_large_universe_many_updates(c: &mut Criterion) {
     let edge = HashMapEdgeScanner::new(paths.clone());
     let rayon_best = RayonBestMatchScanner::new(paths.clone());
     let rayon_first = RayonFirstMatchScanner::new(paths.clone());
+    
+    let group_name = format!("arb_timed/large_universe_many_updates/paths={path_count}/updates={n_updates}");
+    let mut group = c.benchmark_group(group_name);
 
-    c.bench_function(&naive_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = naive.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&edge_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = edge.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_best_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_best.process_update(u);
-            }
-        })
-    });
-    c.bench_function(&rayon_first_test_id, |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_first.process_update(u);
-            }
-        })
-    });  
+    bench_scanner(&mut group, "naive", &updates, naive);
+    bench_scanner(&mut group, "edge", &updates, edge);
+    bench_scanner(&mut group, "rayon_best", &updates, rayon_best);
+    bench_scanner(&mut group, "rayon_first", &updates, rayon_first);
+
+    group.finish();
 }
 
 

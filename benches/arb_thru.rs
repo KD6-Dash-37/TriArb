@@ -1,6 +1,15 @@
 // benches/arb_thru.rs
 
-use criterion::{criterion_group, criterion_main, Criterion, Throughput, black_box};
+// cargo bench --bench arb_thru -- --save-baseline current
+
+use criterion::{
+    criterion_group,
+    criterion_main,
+    BenchmarkGroup,
+    Criterion,
+    Throughput,
+    black_box,
+};
 use tri_arb::{
     arb::{HashMapEdgeScanner, NaivePrecompiledScanner, RayonBestMatchScanner, ArbEvaluator, RayonFirstMatchScanner},
     devtools::path_sampler::sample_paths,
@@ -8,6 +17,7 @@ use tri_arb::{
 };
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+
 
 fn mock_updates(symbols: &[String], count: usize) -> Vec<TopOfBookUpdate> {
     let mut updates = Vec::with_capacity(count);
@@ -22,6 +32,23 @@ fn mock_updates(symbols: &[String], count: usize) -> Vec<TopOfBookUpdate> {
     updates.shuffle(&mut thread_rng());
     updates
 }
+
+
+fn bench_scanner_throughput<B: ArbEvaluator>(
+    group: &mut BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    name: &str,
+    updates: &[TopOfBookUpdate],
+    scanner: B,
+) {
+    group.bench_function(name, |b| {
+        b.iter(|| {
+            for u in black_box(updates) {
+                let _ = scanner.process_update(u);
+            }
+        });
+    });
+}
+
 
 fn bench_arb_scanner_throughput(c: &mut Criterion) {
     let path_count = 50;
@@ -38,37 +65,13 @@ fn bench_arb_scanner_throughput(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("arb_throughput");
     group.throughput(Throughput::Elements(n_updates as u64));
+    
+    bench_scanner_throughput(&mut group, "naive", &updates, naive);
+    bench_scanner_throughput(&mut group, "edge", &updates, edge);
+    bench_scanner_throughput(&mut group, "rayon_best", &updates, rayon_best);
+    bench_scanner_throughput(&mut group, "rayon_first", &updates, rayon_first);
 
-    group.bench_function("naive", |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = naive.process_update(u);
-            }
-        });
-    });
-
-    group.bench_function("edge", |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = edge.process_update(u);
-            }
-        });
-    });
-
-    group.bench_function("rayon_best", |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_best.process_update(u);
-            }
-        });
-    });
-    group.bench_function("rayon_first", |b| {
-        b.iter(|| {
-            for u in black_box(&updates) {
-                let _ = rayon_first.process_update(u);
-            }
-        });
-    });
+    group.finish();
 }
 
 criterion_group!(arb_thru_benches, bench_arb_scanner_throughput);
