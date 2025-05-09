@@ -204,7 +204,7 @@ pub fn build_paths<'a>(
             leg2: PathLeg { symbol: s2.clone(), side: side2 },
             leg3: PathLeg { symbol: s3.clone(), side: side3 },
         };
-        println!("Constructed: {}", path);
+        // println!("Constructed: {}", path);
         result.push(path);
     }
 

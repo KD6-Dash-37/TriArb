@@ -13,12 +13,11 @@ This project is designed to help answer questions like:
 **This project does *not* include trade execution, order placement, or connectivity to live accounts.**
 It is a research and development effort meant for educational purposes only. Do not use it for trading real funds.
 
-## ✨ What We’ve Built So Far
 
 ### 📡 WebSocket Ingestion
 
 * **Powered by** [`fastwebsockets`](https://crates.io/crates/fastwebsockets) for ultra-low latency.
-* Subscribes to Binance's `bookTicker` stream for a predefined set of symbols.
+* Connects to either Binance's `bookTicker` stream or a local mock server for test feeds.
 * Efficiently decodes raw frames and dispatches data to a parsing queue via `tokio::mpsc`.
 
 ### 🧩 Modular Parsers
@@ -40,7 +39,7 @@ Choose between multiple arbitrage evaluation strategies, each designed for diffe
 
 * ✅ [`Naive Precompiled Scanner`](./src/arb/naive.rs)  
 * ✅ [`HashMap Edge Scanner`](./src/arb/edge.rs)  
-* ✅ [`Multithreaded Scan with Rayon`](./src/arb/rayon_scan.rs) *(planned)*
+* ✅ [`Rayon Scanners (Symbol-Indexed + Parallel)`](./src/arb/rayon_scan.rs)
 * 🛠️ [`Delta-Based Scan`](./src/arb/delta.rs) *(planned)*  
 * 🛠️ [`SIMD Vectorized Evaluation`](./src/arb/simd.rs) *(planned)*  
 
@@ -52,6 +51,18 @@ Choose between multiple arbitrage evaluation strategies, each designed for diffe
   * Single-message throughput
   * 100K+ message batch parsing
 * Designed to help track performance gains over time and inform parser architecture decisions.
+
+### 🧪 Development Features
+
+#### 🔌 Mock WebSocket Server (For Integration Testing & Benchmarking)
+
+* Includes a local **Binance-style WebSocket server** that emits `bookTicker` JSON messages over `ws://localhost:9001`.
+* Backed by a **"hot cache"** that generates synthetic top-of-book updates for any set of symbols.
+* Useful for:
+  * Parser and evaluator integration tests
+  * Latency/throughput benchmarking without relying on live data
+  * Chaos testing (e.g., symbol jitter, bursty updates, simulated gaps)
+* See [examples](./examples/mock_feed_to_ws.rs) for how to connect using prod WS client
 
 ---
 

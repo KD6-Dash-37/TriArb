@@ -9,7 +9,7 @@ This document outlines the core evaluation strategies used (or planned) within t
 ### 📂 Implemented & Planned Methods
 
 
-* ✅ [`Naive Precompiled Scanner`](./src/arb/naive.rs)  
+* ✅ [`Naive Scanner`](./src/arb/naive.rs)  
   Iterates over all pricing paths every time — simple, slow, and great for correctness testing.
 
 * ✅ [`HashMap Edge Scanner`](./src/arb/edge.rs)  
@@ -24,6 +24,14 @@ This document outlines the core evaluation strategies used (or planned) within t
 * 🛠️ [`SIMD Vectorized Evaluation`](./src/arb/simd.rs) *(planned)*  
   Uses SIMD to batch-evaluate path profitability — targeting peak throughput on modern CPUs.
 
+## 🔄 Comparison with Current Methods
+
+| Method              | On Update                     | Path Scope             | Avoids Redundant Work? |
+| ------------------- | ----------------------------- | ---------------------- | ---------------------- |
+| Naive Scanner       | Scan all paths                | Global                 | ❌ Never                |
+| Edge Scanner        | Scan paths for updated symbol | Local per symbol       | ✅ Partial              |
+| Rayon Scanner       | Scan symbol-mapped paths in parallel | Local per symbol (parallel) | ✅ Partial |
+| Delta Scanner       | Scan only dirty paths         | Minimal (tracked)      | ✅ Full                 |
 
 ---
 
@@ -144,16 +152,15 @@ This makes them suitable for large symbol universes and burst-heavy environments
 
 ---
 
-### 🧩 Variants
+### 🔀 `Rayon Scanner Variants`
 
-Two scanner strategies are implemented and selectable via config:
+| Variant      | Behavior                                                            |
+| ------------ | ------------------------------------------------------------------- |
+| `FirstMatch` | Stops on first profitable path using `find_map_any` (low latency)   |
+| `BestMatch`  | Evaluates all relevant paths in parallel, returns best via `max_by` |
 
-| Variant      | Behavior                                                              |
-| ------------ | --------------------------------------------------------------------- |
-| `FirstMatch` | Returns the first profitable path found in parallel                   |
-| `BestMatch`  | Evaluates all relevant paths and returns the one with the highest ROI |
-
-Each variant uses shared `DashMap` state and an indexed `HashMap<Symbol, Vec<Path>>` to localize evaluation on every `TopOfBookUpdate`.
+> Both use symbol-indexed path sets and a shared thread-safe price store (`DashMap`).
+> Ideal for large universes and multicore CPUs.
 
 ---
 
@@ -178,19 +185,6 @@ on_update_return = "best"  # or "first"
    * The symbol’s entry in `path_index` is used to retrieve relevant paths.
    * Those paths are scanned in parallel using `rayon::par_iter()`.
 
-#### `FirstMatch`
-
-* Stops at the first profitable path found (`end > 1.0`)
-* Uses `find_map_any(...)`
-* ✅ *Low latency, fastest match*
-
-#### `BestMatch`
-
-* Filters for all profitable paths
-* Picks the one with the highest return via `max_by(...)`
-* ✅ *Maximizes return, ideal for ROI-focused evaluation*
-
----
 
 ### ✅ Design Benefits
 
@@ -241,18 +235,6 @@ on_update_return = "best"  # or "first"
   * `packed_simd`
 * ✅ *Max throughput for CPU-bound workloads*
 * ❌ *Complex, brittle, hard to debug and align*
-
----
-
-## 📊 Comparison Table
-
-| Strategy              | Pros                               | Cons                                     | Best When                         |
-| --------------------- | ---------------------------------- | ---------------------------------------- | --------------------------------- |
-| **Naive Precompiled** | Simple, fast to prototype          | Scales poorly with more triangles        | Small universes                   |
-| **HashMap Edge Scan** | Dynamic, path-flexible             | Still O(n), slightly more logic          | Medium universes                  |
-| **Rayon Multithread** | CPU parallelism                    | Extra setup, best with high CPU count    | Large universes                   |
-| **Delta-Based Scan**  | Evaluates only impacted paths      | Needs indexing logic                     | High-frequency updates            |
-| **SIMD Evaluation**   | Ultimate performance (low latency) | Very hard to implement, debug, and align | Hardcore performance environments |
 
 ---
 

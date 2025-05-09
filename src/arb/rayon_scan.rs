@@ -9,6 +9,7 @@ use crate::{parse::TopOfBookUpdate, price_path::{PricingPath, Side}};
 
 use super::ArbEvaluator;
 
+const START: f64 = 1.0;
 
 /// `RayonPathScanner` evaluates arbitrage opportunities across all known pricing paths
 /// using data-parallelism via the Rayon library.
@@ -23,7 +24,7 @@ use super::ArbEvaluator;
 /// Internally uses a `DashMap` for concurrent price storage and `Arc<PricingPath>` for safe parallel access.
 pub struct RayonFirstMatchScanner {
     price_store: DashMap<String, TopOfBookUpdate>,
-    path_index: HashMap<String, Vec<Arc<PricingPath>>>,
+    symbol_to_paths: HashMap<String, Vec<Arc<PricingPath>>>,
 }
 
 impl RayonFirstMatchScanner {
@@ -33,43 +34,49 @@ impl RayonFirstMatchScanner {
         let paths: Vec<Arc<PricingPath>> = price_paths.into_iter().map(Arc::new).collect();
 
         // Preallocate with 3x paths since each path maps to 3 symbols
-        let mut path_index: HashMap<String, Vec<Arc<PricingPath>>> = HashMap::with_capacity(paths.len() * 3);
+        let mut symbol_to_paths: HashMap<String, Vec<Arc<PricingPath>>> = HashMap::with_capacity(paths.len() * 3);
         
         for path in &paths {
             for symbol in path.symbols() {
-                path_index.entry(symbol).or_default().push(Arc::clone(path));
+                symbol_to_paths.entry(symbol).or_default().push(Arc::clone(path));
             }
         }
         Self {
             price_store: DashMap::new(),
-            path_index,
+            symbol_to_paths,
         }
     }
 }
 
 
 impl ArbEvaluator for RayonFirstMatchScanner {
-    /// Processes a top-of-book update and evaluates **all** known pricing paths for arbitrage.
-    ///
-    /// Uses `rayon::par_iter().find_map_any(...)` to scan paths in parallel, returning the
-    /// *first* profitable opportunity found. Note that this method is **non-deterministic** in
-    /// which arbitrage path is returned when multiple are profitable.
-    ///
-    /// Returns a tuple of the winning `PricingPath` and the resulting return factor if `end > 1.0`.
+    /// Evaluates only the pricing paths involving the updated symbol in parallel using Rayon.
+    /// Returns the first profitable match, if any. 
+    /// This is a fast, non-deterministic approach ideal for high-frequency updates.
     fn process_update(&self, update: &TopOfBookUpdate) -> Option<(PricingPath, f64)> {
         self.price_store.insert(update.symbol.clone(), update.clone());
-        let Some(paths) = self.path_index.get(&update.symbol) else {
+        let Some(relevant_paths) = self.symbol_to_paths.get(&update.symbol) else {
             return None
         };
 
-        paths
+        relevant_paths
             .par_iter()
             .find_map_any(|path| {
-                let p1 = self.price_store.get(&path.leg1.symbol.symbol)?;
-                let p2 = self.price_store.get(&path.leg2.symbol.symbol)?;
-                let p3 = self.price_store.get(&path.leg3.symbol.symbol)?;
+                let s1 = &path.leg1.symbol.symbol;
+                let s2 = &path.leg2.symbol.symbol;
+                let s3 = &path.leg3.symbol.symbol;
 
-                const START: f64 = 1.0;
+                // Early filter: skip path if not all 3 symbols are present
+                if !(self.price_store.contains_key(s1)
+                    && self.price_store.contains_key(s2)
+                    && self.price_store.contains_key(s3)) {
+                    return None;
+                }
+
+                // Safe to unwrap now
+                let p1 = self.price_store.get(s1).unwrap();
+                let p2 = self.price_store.get(s2).unwrap();
+                let p3 = self.price_store.get(s3).unwrap();
 
                 let step1 = match path.leg1.side {
                     Side::Ask => START / p1.ask_price,
@@ -103,7 +110,7 @@ impl ArbEvaluator for RayonFirstMatchScanner {
 /// but ensures the best available opportunity is returned.
 pub struct RayonBestMatchScanner {
     price_store: DashMap<String, TopOfBookUpdate>,
-    path_index: HashMap<String, Vec<Arc<PricingPath>>>,
+    symbol_to_paths: HashMap<String, Vec<Arc<PricingPath>>>,
 }
 
 
@@ -114,52 +121,48 @@ impl RayonBestMatchScanner {
         let paths: Vec<Arc<PricingPath>> = price_paths.into_iter().map(Arc::new).collect();
 
         // Preallocate with 3x paths since each path maps to 3 symbols
-        let mut path_index: HashMap<String, Vec<Arc<PricingPath>>> = HashMap::with_capacity(paths.len() * 3);
+        let mut symbol_to_paths: HashMap<String, Vec<Arc<PricingPath>>> = HashMap::with_capacity(paths.len() * 3);
         
         for path in &paths {
             for symbol in path.symbols() {
-                path_index.entry(symbol).or_default().push(Arc::clone(path));
+                symbol_to_paths.entry(symbol).or_default().push(Arc::clone(path));
             }
         }
         Self {
             price_store: DashMap::new(),
-            path_index,
+            symbol_to_paths,
         }
     }
 }
 
 
 impl ArbEvaluator for RayonBestMatchScanner {
-    /// Processes a top-of-book update and evaluates **all** known pricing paths for arbitrage,
-    /// returning the path with the **highest return** (if any).
-    ///
-    /// This method uses `rayon::par_iter()` to parallelize evaluation across all known paths.
-    /// For each path, it checks whether all three required symbols are present in the internal
-    /// price store. If so, it calculates the resulting return (`end`) from executing the
-    /// 3-leg triangular arbitrage.
-    ///
-    /// Only paths where `end > 1.0` (profitable) are retained. Among those, the path with the
-    /// **maximum return value** is selected using `max_by(...)`.
-    ///
-    /// This strategy ensures that the **most profitable opportunity** is returned on every update,
-    /// at the cost of scanning all paths on each message (which is mitigated by multithreading).
-    ///
-    /// Returns:
-    /// - `Some((PricingPath, return_value))` if a profitable path was found.
-    /// - `None` if no arbitrage opportunities exist at the time of this update.
+    /// Evaluates all relevant paths involving the updated symbol in parallel,
+    /// returning the most profitable opportunity (if any).
+    /// This ensures deterministic selection of the best opportunity but incurs slightly higher cost than early-exit scanning.
     fn process_update(&self, update: &TopOfBookUpdate) -> Option<(PricingPath, f64)> {
         self.price_store.insert(update.symbol.clone(), update.clone());
-        let Some(paths) = self.path_index.get(&update.symbol) else {
-            return None
+        let Some(relevant_paths) = self.symbol_to_paths.get(&update.symbol) else {
+            return None;
         };
-        paths
+        relevant_paths
             .par_iter()
             .filter_map(|path| {
-                let p1 = self.price_store.get(&path.leg1.symbol.symbol)?;
-                let p2 = self.price_store.get(&path.leg2.symbol.symbol)?;
-                let p3 = self.price_store.get(&path.leg3.symbol.symbol)?;
+                let s1 = &path.leg1.symbol.symbol;
+                let s2 = &path.leg2.symbol.symbol;
+                let s3 = &path.leg3.symbol.symbol;
 
-                const START: f64 = 1.0;
+                // Early filter: skip path if not all 3 symbols are present
+                if !(self.price_store.contains_key(s1)
+                    && self.price_store.contains_key(s2)
+                    && self.price_store.contains_key(s3)) {
+                    return None;
+                }
+
+                // Safe to unwrap now
+                let p1 = self.price_store.get(s1).unwrap();
+                let p2 = self.price_store.get(s2).unwrap();
+                let p3 = self.price_store.get(s3).unwrap();
 
                 let step1 = match path.leg1.side {
                     Side::Ask => START / p1.ask_price,
@@ -185,6 +188,7 @@ impl ArbEvaluator for RayonBestMatchScanner {
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
     }
 }
+
 
 #[cfg(test)]
 mod tests {
